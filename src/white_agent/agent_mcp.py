@@ -219,10 +219,25 @@ RESPOND with a JSON list of predicted tool names (use EXACT format app__api):
                 task_match = re.search(r'<task>(.*?)</task>', user_input, re.DOTALL)
                 task_instruction = task_match.group(1).strip() if task_match else ""
                 
+                print(f"[White Agent MCP] Task extraction: {'SUCCESS' if task_instruction else 'FAILED'}")
+                if task_instruction:
+                    print(f"[White Agent MCP] Task: {task_instruction[:100]}...")
+                
                 # Perform Planning Phase
                 planning_result = None
                 if task_instruction:
-                    planning_result = await self.plan_task(task_instruction)
+                    print("[White Agent MCP] Starting Planning Phase...")
+                    try:
+                        planning_result = await self.plan_task(task_instruction)
+                        if planning_result:
+                            print("[White Agent MCP] ✓ Planning Phase completed successfully")
+                        else:
+                            print("[White Agent MCP] ⚠️  Planning Phase returned None")
+                    except Exception as e:
+                        print(f"[White Agent MCP] ✗ Planning Phase failed: {e}")
+                        traceback.print_exc()
+                else:
+                    print("[White Agent MCP] ⚠️  Skipping Planning Phase - no task instruction found")
                 
                 # Build system prompt with planning results
                 if planning_result:
