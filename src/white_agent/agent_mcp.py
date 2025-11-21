@@ -119,6 +119,12 @@ INSTRUCTIONS:
 5. Use 'supervisor__show_account_passwords' to get credentials if needed.
 6. ALWAYS check the tool list above before calling a tool.
 
+ANSWER FORMAT:
+- When providing the final answer, ONLY provide the requested information, nothing else.
+- For song titles: ONLY the title, e.g., "Song Name" (not "The title is 'Song Name' by Artist")
+- For numerical answers: ONLY the number, e.g., "42" (not "The answer is 42")
+- If there is no explicit answer, leave content empty: {{"action": "answer", "content": ""}}
+
 IMPORTANT: To call a tool, you MUST output a JSON block. Do not just say you will call it.
 Format:
 ```json
@@ -190,23 +196,19 @@ When you have the final answer:
                             # Send result back to LLM (internal loop)
                             tool_result_msg = f"Tool '{tool_name}' returned:\n{json.dumps(result, indent=2, default=str)}"
                             
-                            # We could loop internally, but for A2A visibility, let's return the thought process
-                            # But we need to tell Green Agent we're still working.
-                            # Actually, Green Agent just waits.
-                            # Let's append result to history and run LLM again?
-                            # For simplicity in this demo, we return the result to Green Agent
-                            # Green Agent will see it and prompt us to continue.
-                            
                             # Better: Append result to history, generate next thought
                             self.history.append({"role": "user", "content": tool_result_msg})
                             
-                            # Recursively call execute? No, too complex.
-                            # Just reply to Green Agent with the thought and the action taken.
-                            # Green Agent loop will prompt "Please continue".
-                            
                         except Exception as e:
                             print(f"[Real MCP] ✗ Tool call failed: {e}")
-                            content += f"\n\n(Tool execution failed: {e})"
+                            error_msg = str(e)
+                            # Provide helpful feedback to LLM
+                            if "not found" in error_msg.lower() or "invalid" in error_msg.lower():
+                                tool_result_msg = f"ERROR: Tool '{tool_name}' does not exist. Please check the AVAILABLE TOOLS list in your system prompt and use the EXACT tool name."
+                            else:
+                                tool_result_msg = f"ERROR calling tool '{tool_name}': {error_msg}"
+                            self.history.append({"role": "user", "content": tool_result_msg})
+                            content += f"\n\n(Tool execution failed: {error_msg})"
                             
                 except json.JSONDecodeError:
                     pass

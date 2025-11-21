@@ -245,6 +245,12 @@ async def run_appworld_task_mcp(white_agent_url: str, task_id: str, max_steps: i
 - Use the 'supervisor' app to access credentials and personal information
 - The supervisor has access to all login credentials for various services
 
+**ANSWER FORMAT:**
+- Provide ONLY the requested information in your final answer
+- For "What is the title of X?", answer with ONLY the title (e.g., "Song Name")
+- Do NOT include extra explanation like "The title is..." or "by Artist"
+- If there is no explicit answer, leave the content empty
+
 **MCP Tool Access:**
 
 You have access to tools via the Model Context Protocol (MCP).
