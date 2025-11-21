@@ -95,23 +95,37 @@ class AppWorldWhiteAgentMCPExecutor(AgentExecutor):
             
             # Initialize system prompt with tool definitions if connected
             if self.mcp_client:
+                # List all tools to verify connection and get metadata
                 tools = self.mcp_client.list_tools()
-                tool_desc = json.dumps(tools[:10], indent=2) # Only show a few to save context
+                print(f"[Real MCP] ✓ Discovered {len(tools)} tools")
+                
+                # Extract just names for context efficiency (there are many tools)
+                # Assuming tool object has 'name' attribute
+                tool_names = [t.name for t in tools]
+                tool_list_str = "\n".join(tool_names)
+                
                 self.history = [
-                    {"role": "system", "content": f"""You are a helpful AI assistant capable of using tools via MCP.
-You have access to {len(tools)} tools. Here are a few examples:
-{tool_desc}
-... (and many more)
+                    {"role": "system", "content": f"""You are a helpful AI assistant operating in an AppWorld environment via MCP.
+You have access to {len(tools)} tools.
 
-You can discover more tools or call them directly.
+AVAILABLE TOOLS (Exact Names):
+{tool_list_str}
+
+INSTRUCTIONS:
+1. The tool names above are EXACT. Do NOT guess or hallucinate tool names (e.g. do not invent 'spotify.get_most_liked_song').
+2. Use 'api_docs__show_app_descriptions' to understand available apps.
+3. Use 'api_docs__show_apis' with an app_name to see available APIs for that app.
+4. Use 'api_docs__show_api_doc' to see how to use a specific API.
+5. Use 'supervisor__show_account_passwords' to get credentials if needed.
+6. ALWAYS check the tool list above before calling a tool.
 
 IMPORTANT: To call a tool, you MUST output a JSON block. Do not just say you will call it.
 Format:
 ```json
 {{
   "action": "call_mcp_tool",
-  "tool_name": "tool_name",
-  "arguments": {{...}}
+  "tool_name": "EXACT_TOOL_NAME",
+  "arguments": {{ "arg_name": "value" }}
 }}
 ```
 

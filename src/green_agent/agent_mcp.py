@@ -101,7 +101,7 @@ class MCPServerManager:
         # Use custom script to serve specific task DB
         script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'serve_task_apis.py')
         api_cmd = [
-            "python", script_path,
+            sys.executable, script_path,
             task_id,
             str(self.api_port)
         ]
@@ -134,7 +134,7 @@ class MCPServerManager:
         # Expose all apps (excluding api_docs as it's not a valid app name for MCP server)
         app_names = ",".join(get_all_apps(skip_admin=True, skip_api_docs=True))
         mcp_cmd = [
-            "python", "-m", "appworld.cli",
+            sys.executable, "-m", "appworld.cli",
             "serve", "mcp", "http",
             "--port", str(self.mcp_port),
             "--remote-apis-url", f"http://localhost:{self.api_port}",
