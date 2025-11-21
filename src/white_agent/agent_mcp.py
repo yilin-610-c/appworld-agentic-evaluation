@@ -77,7 +77,13 @@ class AppWorldWhiteAgentMCPExecutor(AgentExecutor):
             print(f"[Real MCP] ✓ Discovered {len(tools)} tools")
             
             # Store all tool names for later use
-            self.all_tool_names = [t.name for t in tools]
+            # Tools might be dict or objects, handle both
+            if tools and isinstance(tools[0], dict):
+                self.all_tool_names = [t['name'] for t in tools]
+            else:
+                self.all_tool_names = [t.name for t in tools]
+            
+            print(f"[Real MCP] Tool sample: {self.all_tool_names[:5]}")
             
             return True
         except Exception as e:
