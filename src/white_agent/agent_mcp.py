@@ -100,36 +100,62 @@ class AppWorldWhiteAgentMCPExecutor(AgentExecutor):
         print("[Planning Phase] Analyzing task and selecting relevant tools...")
         print(f"{'='*80}")
         
-        # Show a sample of tools to LLM for reference (not all 469)
-        sample_tool_names = self.all_tool_names[:50]
-        tool_sample_str = "\n".join(sample_tool_names)
+        # NEW APPROACH: Directly filter tools by keyword matching
+        # Extract likely app names from task (e.g., "Spotify" -> spotify)
+        task_lower = task_instruction.lower()
         
-        # Step 1: Ask LLM to predict relevant tools based on task
+        # Identify relevant apps from task keywords
+        relevant_apps = set()
+        app_keywords = {
+            'spotify': ['spotify', 'song', 'music', 'playlist', 'artist', 'album'],
+            'gmail': ['gmail', 'email', 'mail', 'message'],
+            'amazon': ['amazon', 'product', 'order', 'shopping'],
+            'file_system': ['file', 'folder', 'directory'],
+            'venmo': ['venmo', 'payment', 'money', 'pay'],
+            'todoist': ['todoist', 'task', 'todo'],
+            'simple_note': ['note', 'memo'],
+            'phone': ['phone', 'call', 'contact'],
+            'splitwise': ['splitwise', 'expense', 'split'],
+        }
+        
+        for app, keywords in app_keywords.items():
+            if any(keyword in task_lower for keyword in keywords):
+                relevant_apps.add(app)
+        
+        # Always include supervisor and api_docs
+        relevant_apps.add('supervisor')
+        relevant_apps.add('api_docs')
+        
+        print(f"[Planning] Detected relevant apps: {sorted(relevant_apps)}")
+        
+        # Filter tools by relevant apps
+        relevant_tools = [
+            tool_name for tool_name in self.all_tool_names
+            if any(tool_name.startswith(app + '__') for app in relevant_apps)
+        ]
+        
+        print(f"[Planning] Found {len(relevant_tools)} relevant tools from {len(relevant_apps)} apps")
+        print(f"[Planning] Sample tools: {relevant_tools[:10]}")
+        
+        # Step 2: Ask LLM to select and prioritize specific tools
+        relevant_tools_str = "\n".join(relevant_tools)
+        
         planning_prompt = f"""Given this task:
 "{task_instruction}"
 
-I have access to {len(self.all_tool_names)} tools in AppWorld.
+Here are the RELEVANT tools available (filtered from {len(self.all_tool_names)} total tools):
 
-Here's a SAMPLE of available tools (first 50):
-{tool_sample_str}
-...and {len(self.all_tool_names) - 50} more tools following similar patterns.
+{relevant_tools_str}
 
-Tool naming pattern: app_name__api_name (e.g., spotify__login, supervisor__show_account_passwords)
+YOUR TASK: Select the EXACT tools you will need to complete this task, in the order you'll use them.
 
-Available apps include: supervisor, spotify, gmail, amazon, venmo, todoist, simple_note, file_system, phone, splitwise, api_docs
+IMPORTANT: Use the EXACT tool names from the list above. Do NOT modify or guess names.
 
-YOUR TASK: Analyze the task and predict which tools you will likely need.
-
-Consider:
-1. What apps are involved? (e.g., for Spotify tasks: spotify, supervisor for credentials)
-2. What operations are needed? (e.g., login, get playlists, get tracks, find most liked)
-3. Supporting tools? (api_docs for exploration if unsure)
-
-RESPOND with a JSON list of predicted tool names (use EXACT format app__api):
+Respond with JSON:
 ```json
 {{
-  "predicted_tools": ["tool1", "tool2", "tool3", ...],
-  "reasoning": "Brief explanation of why these tools"
+  "selected_tools": ["tool1", "tool2", "tool3", ...],
+  "reasoning": "Brief explanation of the plan"
 }}
 ```
 """
@@ -142,28 +168,26 @@ RESPOND with a JSON list of predicted tool names (use EXACT format app__api):
             )
             
             content = response.choices[0].message.content
-            print(f"[Planning] LLM response: {content[:200]}...")
+            print(f"[Planning] LLM response received")
             
-            # Parse predicted tools
+            # Parse selected tools
             import re
             json_match = re.search(r'```json\s*(\{.*?\})\s*```', content, re.DOTALL)
             if json_match:
-                prediction = json.loads(json_match.group(1))
-                predicted_tools = prediction.get("predicted_tools", [])
-                reasoning = prediction.get("reasoning", "")
+                plan = json.loads(json_match.group(1))
+                selected_tools = plan.get("selected_tools", [])
+                reasoning = plan.get("reasoning", "")
                 
-                print(f"[Planning] Predicted {len(predicted_tools)} relevant tools")
+                print(f"[Planning] Selected {len(selected_tools)} tools")
                 print(f"[Planning] Reasoning: {reasoning}")
-                print(f"[Planning] Tools: {predicted_tools[:10]}")
+                print(f"[Planning] Tools: {selected_tools}")
                 
-                # Step 2: Get detailed documentation for predicted tools
-                for tool_name in predicted_tools[:15]:  # Limit to top 15 to avoid context overflow
-                    # Verify tool exists
+                # Step 3: Get detailed documentation for selected tools (top 10)
+                for tool_name in selected_tools[:10]:
                     if tool_name not in self.all_tool_names:
                         print(f"[Planning] ⚠️  '{tool_name}' not in available tools, skipping")
                         continue
                     
-                    # Try to get API documentation
                     if "__" in tool_name:
                         app_name, api_name = tool_name.split("__", 1)
                         try:
@@ -177,14 +201,13 @@ RESPOND with a JSON list of predicted tool names (use EXACT format app__api):
                         except Exception as e:
                             print(f"[Planning] ✗ Failed to get docs for {tool_name}: {e}")
                 
-                self.planned_tools = predicted_tools
+                self.planned_tools = selected_tools
                 
-                # Step 3: Build documentation summary
+                # Build documentation summary
                 planned_tools_info = []
-                for tool in predicted_tools[:10]:  # Show top 10 in system prompt
+                for tool in selected_tools[:10]:
                     if tool in self.tool_docs:
                         doc = self.tool_docs[tool]
-                        # Truncate doc if too long
                         doc_str = json.dumps(doc, indent=2, default=str)
                         if len(doc_str) > 500:
                             doc_str = doc_str[:500] + "...(truncated)"
@@ -196,7 +219,8 @@ RESPOND with a JSON list of predicted tool names (use EXACT format app__api):
                 print(f"{'='*80}\n")
                 
                 return {
-                    "planned_tools": predicted_tools,
+                    "planned_tools": selected_tools,
+                    "relevant_tools": relevant_tools,  # Full list of relevant tools
                     "reasoning": reasoning,
                     "docs_summary": planned_summary
                 }
@@ -248,31 +272,32 @@ RESPOND with a JSON list of predicted tool names (use EXACT format app__api):
                 # Build system prompt with planning results
                 if planning_result:
                     # Enhanced system prompt with planning
+                    relevant_tools_str = "\n".join(['- ' + t for t in planning_result['relevant_tools']])
+                    
                     system_content = f"""You are a helpful AI assistant operating in an AppWorld environment via MCP.
 You have access to {len(self.all_tool_names)} tools.
 
 === PLANNING PHASE RESULTS ===
-Based on analysis of the task, these tools were identified as likely relevant:
+Based on analysis of the task, I have filtered down to {len(planning_result['relevant_tools'])} RELEVANT tools.
 
-PREDICTED TOOLS:
-{chr(10).join(['- ' + t for t in planning_result['planned_tools'][:15]])}
+**PREDICTED EXECUTION PLAN:**
+{chr(10).join(['  ' + str(i+1) + '. ' + t for i, t in enumerate(planning_result['planned_tools'][:15])])}
 
-REASONING: {planning_result['reasoning']}
+**REASONING:** {planning_result['reasoning']}
 
-DETAILED DOCUMENTATION (Top Tools):
+**DETAILED DOCUMENTATION (Key Tools):**
 {planning_result['docs_summary']}
 
-=== ALL AVAILABLE TOOLS ===
-(For reference, showing first 100)
-{chr(10).join(self.all_tool_names[:100])}
-...(and {len(self.all_tool_names) - 100} more)
+=== ALL RELEVANT TOOLS (USE THESE) ===
+{relevant_tools_str}
 
 === INSTRUCTIONS ===
-1. START with the predicted tools from the planning phase
-2. Use EXACT tool names (format: app_name__api_name)
-3. For credentials: use supervisor__show_account_passwords
-4. Do NOT invent tool names like "spotify.get_most_liked_song" - no such tool exists
-5. If you need to explore: use api_docs__show_app_descriptions or api_docs__show_apis
+1. **PRIORITIZE** the tools from the execution plan above
+2. **ONLY use tools from the "ALL RELEVANT TOOLS" list**
+3. Use EXACT tool names (format: app_name__api_name)
+4. For credentials: use supervisor__show_account_passwords and supervisor__show_profile
+5. Do NOT invent tool names - they must match EXACTLY from the list
+6. If unsure about usage, call api_docs__show_api_doc with app_name and api_name
 
 === ANSWER FORMAT ===
 - Provide ONLY the requested information, nothing else
