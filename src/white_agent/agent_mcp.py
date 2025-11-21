@@ -1,4 +1,4 @@
-"""White agent implementation with MCP support (Approach III)."""
+"""White agent implementation with MCP support (Approach III) - with Planning Phase."""
 
 import uvicorn
 import tomllib
@@ -36,12 +36,16 @@ def load_agent_card_toml(agent_name: str) -> dict:
 
 
 class AppWorldWhiteAgentMCPExecutor(AgentExecutor):
-    """Agent executor for the AppWorld white agent (MCP version)."""
+    """Agent executor for the AppWorld white agent (MCP version) with Planning Phase."""
     
     def __init__(self):
         self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
         self.history = []
         self.mcp_client = None
+        # Planning phase attributes
+        self.planned_tools = []
+        self.tool_docs = {}
+        self.all_tool_names = []
         
     async def connect_to_mcp(self, mcp_url: str):
         """Connect to the MCP server."""
@@ -53,11 +57,9 @@ class AppWorldWhiteAgentMCPExecutor(AgentExecutor):
             
         try:
             # Configure MCP Client
-            # AppWorld's MCPClient.from_dict expects a config dict
-            # For HTTP transport:
             mcp_config = {
                 "type": "http",
-                "remote_mcp_url": mcp_url.replace("/mcp", "") # Remove /mcp suffix if present, client adds it
+                "remote_mcp_url": mcp_url.replace("/mcp", "") # Remove /mcp suffix if present
             }
             if mcp_url.endswith("/mcp"):
                 mcp_config["remote_mcp_url"] = mcp_url[:-4]
@@ -73,7 +75,9 @@ class AppWorldWhiteAgentMCPExecutor(AgentExecutor):
             # List tools to verify connection
             tools = self.mcp_client.list_tools()
             print(f"[Real MCP] ✓ Discovered {len(tools)} tools")
-            # print(f"Tools sample: {[t['name'] for t in tools[:5]]}")
+            
+            # Store all tool names for later use
+            self.all_tool_names = [t.name for t in tools]
             
             return True
         except Exception as e:
@@ -81,11 +85,127 @@ class AppWorldWhiteAgentMCPExecutor(AgentExecutor):
             traceback.print_exc()
             return False
 
+    async def plan_task(self, task_instruction: str):
+        """Planning Phase: Analyze task and pre-select relevant tools with documentation."""
+        if not self.mcp_client:
+            return None
+        
+        print(f"\n{'='*80}")
+        print("[Planning Phase] Analyzing task and selecting relevant tools...")
+        print(f"{'='*80}")
+        
+        # Show a sample of tools to LLM for reference (not all 469)
+        sample_tool_names = self.all_tool_names[:50]
+        tool_sample_str = "\n".join(sample_tool_names)
+        
+        # Step 1: Ask LLM to predict relevant tools based on task
+        planning_prompt = f"""Given this task:
+"{task_instruction}"
+
+I have access to {len(self.all_tool_names)} tools in AppWorld.
+
+Here's a SAMPLE of available tools (first 50):
+{tool_sample_str}
+...and {len(self.all_tool_names) - 50} more tools following similar patterns.
+
+Tool naming pattern: app_name__api_name (e.g., spotify__login, supervisor__show_account_passwords)
+
+Available apps include: supervisor, spotify, gmail, amazon, venmo, todoist, simple_note, file_system, phone, splitwise, api_docs
+
+YOUR TASK: Analyze the task and predict which tools you will likely need.
+
+Consider:
+1. What apps are involved? (e.g., for Spotify tasks: spotify, supervisor for credentials)
+2. What operations are needed? (e.g., login, get playlists, get tracks, find most liked)
+3. Supporting tools? (api_docs for exploration if unsure)
+
+RESPOND with a JSON list of predicted tool names (use EXACT format app__api):
+```json
+{{
+  "predicted_tools": ["tool1", "tool2", "tool3", ...],
+  "reasoning": "Brief explanation of why these tools"
+}}
+```
+"""
+        
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": planning_prompt}],
+                temperature=0
+            )
+            
+            content = response.choices[0].message.content
+            print(f"[Planning] LLM response: {content[:200]}...")
+            
+            # Parse predicted tools
+            import re
+            json_match = re.search(r'```json\s*(\{.*?\})\s*```', content, re.DOTALL)
+            if json_match:
+                prediction = json.loads(json_match.group(1))
+                predicted_tools = prediction.get("predicted_tools", [])
+                reasoning = prediction.get("reasoning", "")
+                
+                print(f"[Planning] Predicted {len(predicted_tools)} relevant tools")
+                print(f"[Planning] Reasoning: {reasoning}")
+                print(f"[Planning] Tools: {predicted_tools[:10]}")
+                
+                # Step 2: Get detailed documentation for predicted tools
+                for tool_name in predicted_tools[:15]:  # Limit to top 15 to avoid context overflow
+                    # Verify tool exists
+                    if tool_name not in self.all_tool_names:
+                        print(f"[Planning] ⚠️  '{tool_name}' not in available tools, skipping")
+                        continue
+                    
+                    # Try to get API documentation
+                    if "__" in tool_name:
+                        app_name, api_name = tool_name.split("__", 1)
+                        try:
+                            print(f"[Planning] Fetching docs for {tool_name}...")
+                            doc_result = self.mcp_client.call_tool(
+                                "api_docs__show_api_doc",
+                                arguments={"app_name": app_name, "api_name": api_name}
+                            )
+                            self.tool_docs[tool_name] = doc_result
+                            print(f"[Planning] ✓ Got docs for {tool_name}")
+                        except Exception as e:
+                            print(f"[Planning] ✗ Failed to get docs for {tool_name}: {e}")
+                
+                self.planned_tools = predicted_tools
+                
+                # Step 3: Build documentation summary
+                planned_tools_info = []
+                for tool in predicted_tools[:10]:  # Show top 10 in system prompt
+                    if tool in self.tool_docs:
+                        doc = self.tool_docs[tool]
+                        # Truncate doc if too long
+                        doc_str = json.dumps(doc, indent=2, default=str)
+                        if len(doc_str) > 500:
+                            doc_str = doc_str[:500] + "...(truncated)"
+                        planned_tools_info.append(f"**{tool}**:\n{doc_str}")
+                
+                planned_summary = "\n\n".join(planned_tools_info)
+                
+                print(f"[Planning] ✓ Planning phase complete")
+                print(f"{'='*80}\n")
+                
+                return {
+                    "planned_tools": predicted_tools,
+                    "reasoning": reasoning,
+                    "docs_summary": planned_summary
+                }
+                
+        except Exception as e:
+            print(f"[Planning] ✗ Error during planning: {e}")
+            traceback.print_exc()
+        
+        return None
+
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         print("[White Agent MCP] Received message...")
         user_input = context.get_user_input()
         
-        # Parse input to check for MCP URL
+        # Parse input to check for MCP URL and task
         import re
         mcp_url_match = re.search(r'MCP Server URL: (http://\S+)', user_input)
         
@@ -93,40 +213,54 @@ class AppWorldWhiteAgentMCPExecutor(AgentExecutor):
             mcp_url = mcp_url_match.group(1)
             await self.connect_to_mcp(mcp_url)
             
-            # Initialize system prompt with tool definitions if connected
+            # Initialize system prompt with Planning Phase if connected
             if self.mcp_client:
-                # List all tools to verify connection and get metadata
-                tools = self.mcp_client.list_tools()
-                print(f"[Real MCP] ✓ Discovered {len(tools)} tools")
+                # Extract task instruction for planning
+                task_match = re.search(r'<task>(.*?)</task>', user_input, re.DOTALL)
+                task_instruction = task_match.group(1).strip() if task_match else ""
                 
-                # Extract just names for context efficiency (there are many tools)
-                # Assuming tool object has 'name' attribute
-                tool_names = [t.name for t in tools]
-                tool_list_str = "\n".join(tool_names)
+                # Perform Planning Phase
+                planning_result = None
+                if task_instruction:
+                    planning_result = await self.plan_task(task_instruction)
                 
-                self.history = [
-                    {"role": "system", "content": f"""You are a helpful AI assistant operating in an AppWorld environment via MCP.
-You have access to {len(tools)} tools.
+                # Build system prompt with planning results
+                if planning_result:
+                    # Enhanced system prompt with planning
+                    system_content = f"""You are a helpful AI assistant operating in an AppWorld environment via MCP.
+You have access to {len(self.all_tool_names)} tools.
 
-AVAILABLE TOOLS (Exact Names):
-{tool_list_str}
+=== PLANNING PHASE RESULTS ===
+Based on analysis of the task, these tools were identified as likely relevant:
 
-INSTRUCTIONS:
-1. The tool names above are EXACT. Do NOT guess or hallucinate tool names (e.g. do not invent 'spotify.get_most_liked_song').
-2. Use 'api_docs__show_app_descriptions' to understand available apps.
-3. Use 'api_docs__show_apis' with an app_name to see available APIs for that app.
-4. Use 'api_docs__show_api_doc' to see how to use a specific API.
-5. Use 'supervisor__show_account_passwords' to get credentials if needed.
-6. ALWAYS check the tool list above before calling a tool.
+PREDICTED TOOLS:
+{chr(10).join(['- ' + t for t in planning_result['planned_tools'][:15]])}
 
-ANSWER FORMAT:
-- When providing the final answer, ONLY provide the requested information, nothing else.
+REASONING: {planning_result['reasoning']}
+
+DETAILED DOCUMENTATION (Top Tools):
+{planning_result['docs_summary']}
+
+=== ALL AVAILABLE TOOLS ===
+(For reference, showing first 100)
+{chr(10).join(self.all_tool_names[:100])}
+...(and {len(self.all_tool_names) - 100} more)
+
+=== INSTRUCTIONS ===
+1. START with the predicted tools from the planning phase
+2. Use EXACT tool names (format: app_name__api_name)
+3. For credentials: use supervisor__show_account_passwords
+4. Do NOT invent tool names like "spotify.get_most_liked_song" - no such tool exists
+5. If you need to explore: use api_docs__show_app_descriptions or api_docs__show_apis
+
+=== ANSWER FORMAT ===
+- Provide ONLY the requested information, nothing else
 - For song titles: ONLY the title, e.g., "Song Name" (not "The title is 'Song Name' by Artist")
 - For numerical answers: ONLY the number, e.g., "42" (not "The answer is 42")
 - If there is no explicit answer, leave content empty: {{"action": "answer", "content": ""}}
 
-IMPORTANT: To call a tool, you MUST output a JSON block. Do not just say you will call it.
-Format:
+=== TOOL CALL FORMAT ===
+To call a tool:
 ```json
 {{
   "action": "call_mcp_tool",
@@ -142,8 +276,37 @@ When you have the final answer:
   "content": "your answer"
 }}
 ```
-"""}
-                ]
+"""
+                else:
+                    # Fallback system prompt without planning
+                    tool_list_str = "\n".join(self.all_tool_names)
+                    system_content = f"""You are a helpful AI assistant operating in an AppWorld environment via MCP.
+You have access to {len(self.all_tool_names)} tools.
+
+AVAILABLE TOOLS (Exact Names):
+{tool_list_str}
+
+INSTRUCTIONS:
+1. Use EXACT tool names from the list above
+2. Do NOT guess or hallucinate tool names
+3. Use 'api_docs__show_app_descriptions' to understand available apps
+4. Use 'supervisor__show_account_passwords' to get credentials
+
+ANSWER FORMAT:
+- Provide ONLY the requested information
+- For song titles: ONLY the title (not "The title is 'Song Name' by Artist")
+
+Tool call format:
+```json
+{{
+  "action": "call_mcp_tool",
+  "tool_name": "EXACT_TOOL_NAME",
+  "arguments": {{ "arg_name": "value" }}
+}}
+```
+"""
+                
+                self.history = [{"role": "system", "content": system_content}]
 
         # Update history
         self.history.append({"role": "user", "content": user_input})
@@ -191,12 +354,12 @@ When you have the final answer:
                             print(f"[Real MCP] ✓ Tool call successful")
                             
                             # DEBUG: Print result to stdout for inspection
-                            print(f"[Real MCP] Result payload: {json.dumps(result, default=str)}")
+                            print(f"[Real MCP] Result payload: {json.dumps(result, default=str)[:200]}...")
                             
                             # Send result back to LLM (internal loop)
                             tool_result_msg = f"Tool '{tool_name}' returned:\n{json.dumps(result, indent=2, default=str)}"
                             
-                            # Better: Append result to history, generate next thought
+                            # Append result to history
                             self.history.append({"role": "user", "content": tool_result_msg})
                             
                         except Exception as e:
@@ -204,7 +367,7 @@ When you have the final answer:
                             error_msg = str(e)
                             # Provide helpful feedback to LLM
                             if "not found" in error_msg.lower() or "invalid" in error_msg.lower():
-                                tool_result_msg = f"ERROR: Tool '{tool_name}' does not exist. Please check the AVAILABLE TOOLS list in your system prompt and use the EXACT tool name."
+                                tool_result_msg = f"ERROR: Tool '{tool_name}' does not exist. Please check your planning results or the available tools list and use the EXACT tool name."
                             else:
                                 tool_result_msg = f"ERROR calling tool '{tool_name}': {error_msg}"
                             self.history.append({"role": "user", "content": tool_result_msg})
@@ -252,4 +415,3 @@ def start_white_agent_mcp(host: str = "0.0.0.0", port: int = 9002):
     app = app_builder.build()
     
     uvicorn.run(app, host=host, port=port)
-
