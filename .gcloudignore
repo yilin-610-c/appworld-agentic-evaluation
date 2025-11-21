@@ -1,0 +1,62 @@
+# Exclude git files
+.git
+.gitignore
+.gitattributes
+
+# Exclude local AppWorld installation (too large for Cloud Build)
+../appworld/
+
+# Exclude Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Exclude virtual environments
+venv/
+env/
+ENV/
+
+# Exclude test files
+test_*.py
+*_test.py
+tests/
+.pytest_cache/
+
+# Exclude development files
+.env
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Exclude documentation (optional, comment out if you want to include)
+*.md
+!README.md
+
+# Exclude batch results
+batch_results*.json
+batch_results*.csv
+quick_test.json
+test_tasks.txt
+
+# Exclude change logs and update docs
+CHANGELOG*.md
+*_FIX_*.md
+*_UPDATE_*.md
+UPDATES_*.md
+CRITICAL_FIX_*.md
+IMPROVED_*.md
+FIELD_TYPE_*.md
+CONVERSATION_*.md
+DATA_ANALYSIS_*.md
+ANSWER_SUBMISSION_*.md
+CONCISE_ANSWER_*.md
+PROMPT_ENGINEERING_*.md
+BATCH_*.md
+AGENTBEATS_*.md
+CLOUD_RUN_*.md
+
+

@@ -1,0 +1,58 @@
+{
+  "summary": {
+    "total_tasks": 4,
+    "successful": 0,
+    "failed": 4,
+    "success_rate": 0.0,
+    "avg_steps": 0.0,
+    "avg_time": 288.1809187531471,
+    "avg_score": 0.0,
+    "timestamp": "2025-11-13T11:09:12.456232"
+  },
+  "tasks": [
+    {
+      "task_id": "82e2fac_1",
+      "success": false,
+      "steps": 0,
+      "time": 303.2097165584564,
+      "score": 0.0,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "error": "Timeout Error: Client Request timed out"
+    },
+    {
+      "task_id": "82e2fac_2",
+      "success": false,
+      "steps": 0,
+      "time": 233.09675455093384,
+      "score": 0.0,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "error": "'SendMessageResponse' object has no attribute 'result'"
+    },
+    {
+      "task_id": "82e2fac_3",
+      "success": false,
+      "steps": 0,
+      "time": 303.220064163208,
+      "score": 0.0,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "error": "Timeout Error: Client Request timed out"
+    },
+    {
+      "task_id": "692c77d_1",
+      "success": false,
+      "steps": 0,
+      "time": 313.19713973999023,
+      "score": 0.0,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "error": "Timeout Error: Client Request timed out"
+    }
+  ]
+}

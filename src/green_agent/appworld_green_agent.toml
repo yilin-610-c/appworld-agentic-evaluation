@@ -1,0 +1,30 @@
+name = "appworld_green_agent"
+description = "The assessment hosting agent for AppWorld benchmark."
+version = "0.1.0"
+
+defaultInputModes = ["text"]
+defaultOutputModes = ["text"]
+
+[capabilities]
+streaming = false
+
+[[skills]]
+id = "host_assess_appworld"
+name = "AppWorld assessment hosting"
+description = """
+Assess the function-calling and interactive coding ability of an agent using AppWorld tasks.
+"""
+tags = ["green agent", "assessment hosting", "appworld"]
+examples = ["""    
+Your task is to test the agent located at:
+<white_agent_url>
+http://localhost:9002/
+</white_agent_url>
+
+Using AppWorld task:
+<task_id>
+82e2fac_1
+</task_id>
+"""]
+
+
