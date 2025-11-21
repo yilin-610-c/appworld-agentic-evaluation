@@ -253,10 +253,15 @@ async def run_appworld_task_mcp(white_agent_url: str, task_id: str, max_steps: i
 
 **MCP Tool Access:**
 
-You have access to tools via the Model Context Protocol (MCP).
-To use a tool, you MUST respond with a JSON block specifying the tool name and arguments.
+Connect to the MCP server to discover and use tools:
 
-Format:
+MCP Server URL: {mcp_url}
+
+Use your MCP client to:
+1. List available tools
+2. Call tools with proper arguments
+
+Format for tool calls:
 ```json
 {{
   "action": "call_mcp_tool",
@@ -264,8 +269,6 @@ Format:
   "arguments": {{ "arg1": "value1", ... }}
 }}
 ```
-
-Available tools can be discovered using `api_docs__show_app_descriptions` or `mcp.list_tools()` (simulated).
 
 When you have the final answer, please respond with:
 ```json
