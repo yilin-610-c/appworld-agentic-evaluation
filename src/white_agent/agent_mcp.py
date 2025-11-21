@@ -104,7 +104,9 @@ You have access to {len(tools)} tools. Here are a few examples:
 ... (and many more)
 
 You can discover more tools or call them directly.
-To call a tool, output JSON:
+
+IMPORTANT: To call a tool, you MUST output a JSON block. Do not just say you will call it.
+Format:
 ```json
 {{
   "action": "call_mcp_tool",
