@@ -139,3 +139,4 @@ zipp==3.23.0
 # -e git+https://github.com/StonyBrookNLP/appworld.git@11e8d1832ffd564d3a87d30d6ad9a1e5997afda1#egg=appworld
 # For Cloud Run, AppWorld data needs to be handled separately (see CLOUD_RUN_DEPLOYMENT.md)
 google-cloud-storage>=2.10.0
+mcp

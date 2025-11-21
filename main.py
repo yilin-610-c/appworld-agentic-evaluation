@@ -6,9 +6,16 @@ import os
 from pathlib import Path
 from typing import Optional, List
 
+# Approach II imports
 from src.green_agent import start_green_agent
 from src.white_agent import start_white_agent
 from src.launcher import launch_evaluation
+
+# Approach III (MCP) imports
+from src.green_agent.agent_mcp import start_green_agent_mcp
+from src.white_agent.agent_mcp import start_white_agent_mcp
+from src.launcher_mcp import launch_evaluation_mcp
+
 from src.evaluator import BatchEvaluator
 
 app = typer.Typer(
@@ -27,16 +34,43 @@ def green(
         9001,
         "--port",
         help="Port to run the green agent on"
+    ),
+    mcp: bool = typer.Option(
+        False,
+        "--mcp",
+        help="Use MCP (Approach III) instead of JSON (Approach II)"
     )
 ):
     """Start the green agent (assessment manager)."""
-    start_green_agent(host=host, port=port)
+    if mcp:
+        start_green_agent_mcp(host=host, port=port)
+    else:
+        start_green_agent(host=host, port=port)
 
 
 @app.command()
-def white():
+def white(
+    host: str = typer.Option(
+        "localhost",
+        "--host",
+        help="Host to bind the white agent to"
+    ),
+    port: int = typer.Option(
+        9002,
+        "--port",
+        help="Port to run the white agent on"
+    ),
+    mcp: bool = typer.Option(
+        False,
+        "--mcp",
+        help="Use MCP (Approach III) instead of JSON (Approach II)"
+    )
+):
     """Start the white agent (target being tested)."""
-    start_white_agent()
+    if mcp:
+        start_white_agent_mcp(host=host, port=port)
+    else:
+        start_white_agent()
 
 
 @app.command()
@@ -44,10 +78,18 @@ def launch(
     task_id: str = typer.Option(
         "82e2fac_1", 
         help="AppWorld task ID to evaluate"
+    ),
+    mcp: bool = typer.Option(
+        False,
+        "--mcp",
+        help="Use MCP (Approach III) instead of JSON (Approach II)"
     )
 ):
     """Launch the complete evaluation workflow."""
-    asyncio.run(launch_evaluation(task_id=task_id))
+    if mcp:
+        asyncio.run(launch_evaluation_mcp(task_id=task_id))
+    else:
+        asyncio.run(launch_evaluation(task_id=task_id))
 
 
 @app.command()
@@ -138,6 +180,11 @@ def batch_evaluate(
         True,
         "--verbose/--quiet",
         help="Print detailed progress"
+    ),
+    mcp: bool = typer.Option(
+        False,
+        "--mcp",
+        help="Use MCP (Approach III) for batch evaluation"
     )
 ):
     """
@@ -158,6 +205,9 @@ def batch_evaluate(
         
         # Save as CSV
         python main.py batch-evaluate --task-ids ... --format csv --output results.csv
+        
+        # Use MCP mode
+        python main.py batch-evaluate --task-ids ... --mcp
     """
     # Determine task list
     task_list = []
@@ -199,9 +249,16 @@ def batch_evaluate(
     print(f"Parallel workers:  {parallel}")
     print(f"Output file:       {output}")
     print(f"Output format:     {format}")
+    print(f"Mode:              {'MCP (Approach III)' if mcp else 'JSON (Approach II)'}")
     print(f"{'='*80}\n")
     
-    # Create evaluator
+    # Create evaluator (Note: BatchEvaluator currently hardcodes Approach II)
+    # For now, we'll just warn if MCP is requested for batch but not implemented
+    if mcp:
+        print("Warning: Batch evaluation for MCP mode is not fully integrated yet.")
+        print("It will use the default BatchEvaluator structure but we need to update it to support --mcp flag.")
+        # TODO: Update BatchEvaluator to accept mcp flag and use start_green_agent_mcp
+    
     evaluator = BatchEvaluator(
         green_port=green_port,
         white_port=white_port,
@@ -235,4 +292,3 @@ def batch_evaluate(
 
 if __name__ == "__main__":
     app()
-
