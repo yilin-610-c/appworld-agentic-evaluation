@@ -444,7 +444,15 @@ def start_white_agent_mcp(host: str = "0.0.0.0", port: int = 9002):
     
     agent_card_data = load_agent_card_toml("appworld_white_agent")
     # Add URL to agent card data (required by A2A SDK)
-    agent_card_data["url"] = f"http://{host}:{port}"
+    # Use CLOUDRUN_HOST if set (for AgentBeats platform deployment)
+    cloudrun_host = os.environ.get("CLOUDRUN_HOST")
+    if cloudrun_host:
+        # Platform deployment: use HTTPS and CLOUDRUN_HOST
+        agent_card_data["url"] = f"https://{cloudrun_host}"
+        print(f"Using CLOUDRUN_HOST for Agent Card URL: https://{cloudrun_host}")
+    else:
+        # Local deployment: use provided host and port
+        agent_card_data["url"] = f"http://{host}:{port}"
     agent_card = AgentCard(**agent_card_data)
     
     executor = AppWorldWhiteAgentMCPExecutor()
