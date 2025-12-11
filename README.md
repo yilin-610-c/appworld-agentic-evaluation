@@ -1,83 +1,96 @@
-# AppWorld Green Agent
+# AppWorld Green Agent: Agentified Benchmark Platform
 
-A comprehensive evaluation framework for testing AI agents on real-world tasks using the AppWorld benchmark.
+[![UC Berkeley AgentX-AgentBeats](https://img.shields.io/badge/AgentX--AgentBeats-Phase%201-green)](https://rdi.berkeley.edu/agentx-agentbeats.html)
+[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## Overview
+An agentified evaluation infrastructure for the AppWorld benchmark, built for the UC Berkeley AgentX-AgentBeats competition. This system transforms AppWorld into an interactive, standardized benchmark using the Agent-to-Agent (A2A) protocol and Model Context Protocol (MCP).
 
-This project implements a **Green Agent** (assessment agent) that evaluates **White Agents** (AI agents being tested) on AppWorld tasks. It supports two tool delivery approaches:
+## 🎯 Overview
 
-- **Approach II**: Tools delivered as JSON text in initial message
-- **Approach III (MCP)**: Tools delivered via Model Context Protocol (real-time tool discovery and execution)
+This project implements a **Green Agent** (benchmark/evaluator) that assesses **White Agents** (AI agents under test) on real-world tasks spanning 9 applications with 469+ APIs. It supports two tool delivery approaches:
 
-## Features
+- **Approach II**: JSON-based tool description (traditional)
+- **Approach III (MCP)**: Live tool discovery via Model Context Protocol (advanced)
 
-- ✅ Complete AppWorld task evaluation
-- ✅ Support for both Approach II and Approach III (MCP)
-- ✅ Agent2Agent (A2A) protocol integration
-- ✅ AgentBeats controller integration for easy deployment
-- ✅ Cloud Run deployment support
-- ✅ Batch evaluation capabilities
-- ✅ Real-time MCP server management
-- ✅ Automatic port management and cleanup
+### Key Features
 
-## Architecture
+- ✅ **Standardized Evaluation**: A2A-compatible interface for any agent
+- ✅ **Dynamic Tool Discovery**: MCP-based real-time API access
+- ✅ **Intelligent Planning**: Keyword-based tool filtering (469 → ~100 relevant tools)
+- ✅ **Multi-dimensional Metrics**: Success rate, API efficiency, failed execution tracking
+- ✅ **Reproducible Assessment**: Consistent initial state for each evaluation run
+- ✅ **Production-Ready**: Cloud Run deployment with automated resource management
+
+---
+
+## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Green Agent                              │
-│  (Manages AppWorld tasks, MCP servers, and evaluation)          │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                    Green Agent (Evaluator)                        │
+│  • Manages AppWorld tasks and environments                       │
+│  • Orchestrates MCP/API servers                                  │
+│  • Evaluates white agent performance                             │
+└──────────────────────────────────────────────────────────────────┘
                               │
-                              │ A2A Protocol
+                              │ A2A Protocol (standardized communication)
+                              ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                    White Agent (Under Test)                       │
+│  • Baseline: OpenAI GPT-4o with planning phase                   │
+│  • Discovers tools dynamically                                   │
+│  • Executes multi-step reasoning                                 │
+└──────────────────────────────────────────────────────────────────┘
                               │
-┌─────────────────────────────────────────────────────────────────┐
-│                         White Agent                              │
-│  (OpenAI-based agent being tested)                              │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              │ (Approach III)
-                              │
-┌─────────────────────────────────────────────────────────────────┐
-│                         MCP Server                               │
-│  (Exposes 457 AppWorld tools via MCP protocol)                  │
-└─────────────────────────────────────────────────────────────────┘
+                              │ MCP (Approach III)
+                              ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                    MCP Server + API Server                        │
+│  • Exposes 469 AppWorld tools                                    │
+│  • Task-specific database loading                                │
+│  • Ports: 9000 (API), 10000 (MCP)                                │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-## Installation
+---
+
+## 📦 Installation
 
 ### Prerequisites
 
-- Python 3.13+
-- Conda (recommended)
-- AppWorld dataset
+- **Python 3.13+**
+- **Conda** (recommended for environment management)
+- **Git**
+- **OpenAI API Key**
 
-### Setup
+### Setup Steps
 
-1. **Clone the repository**:
+#### 1. Clone the Repository
+
 ```bash
-git clone <repository-url>
-cd appworld_green_agent
+git clone https://github.com/your-username/appworld-green-agent.git
+cd appworld-green-agent
 ```
 
-2. **Create Conda environment**:
+#### 2. Create Conda Environment
+
 ```bash
 conda create -n appworld_agent_py313 python=3.13
 conda activate appworld_agent_py313
 ```
 
-3. **Install dependencies**:
+#### 3. Install Dependencies
+
 ```bash
 pip install -r requirements.txt
+pip install mcp  # For Approach III (MCP mode)
 ```
 
-4. **Install MCP package** (for Approach III):
-```bash
-pip install mcp
-```
+#### 4. Setup AppWorld Benchmark
 
-5. **Set up AppWorld**:
 ```bash
-# Clone AppWorld repository
+# Clone AppWorld repository (adjacent to this project)
 cd ..
 git clone https://github.com/stonybrooknlp/appworld.git
 cd appworld
@@ -86,210 +99,335 @@ cd appworld
 python -m appworld.cli download --dataset-version v1
 ```
 
-6. **Set environment variables**:
+#### 5. Configure Environment Variables
+
 ```bash
+# Add to ~/.bashrc or ~/.zshrc
 export APPWORLD_ROOT=/path/to/appworld
-export OPENAI_API_KEY=your-api-key-here
+export OPENAI_API_KEY=your-openai-api-key-here
 ```
 
-## Usage
-
-### Local Testing
-
-#### Approach II (JSON Tool Delivery)
+**Verify setup:**
 
 ```bash
-# Launch Green and White agents
+echo $APPWORLD_ROOT
+ls $APPWORLD_ROOT/data  # Should show task files
+```
+
+---
+
+## 🚀 Usage
+
+### Quick Start: Single Task Evaluation
+
+#### Approach II (JSON-based)
+
+```bash
+# Launch both green and white agents
 python main.py launch --task-id 82e2fac_1
-
-# Or run agents separately
-python main.py green --host 0.0.0.0 --port 9001
-python main.py white --host 0.0.0.0 --port 9002
 ```
 
-#### Approach III (MCP)
+#### Approach III (MCP - Recommended)
 
 ```bash
-# Launch with MCP support
+# Launch with MCP for dynamic tool discovery
 python main.py launch --task-id 82e2fac_1 --mcp
-
-# Or run agents separately with MCP
-python main.py green --host 0.0.0.0 --port 9001 --mcp
-python main.py white --host 0.0.0.0 --port 9002 --mcp
 ```
 
 ### Batch Evaluation
 
 ```bash
-# Evaluate on multiple tasks
-python main.py batch --task-ids 82e2fac_1,a1b2c3d_2 --output results.json
+# Evaluate multiple tasks
+python main.py batch --task-ids 82e2fac_1,a1b2c3d_2,xyz123_3 --output results.json
 
 # With MCP
 python main.py batch --task-ids 82e2fac_1,a1b2c3d_2 --output results.json --mcp
 ```
 
-### Cloud Deployment
+### Running Agents Separately
 
-1. **Build and deploy to Cloud Run**:
 ```bash
+# Terminal 1: Start Green Agent
+python main.py green --host 0.0.0.0 --port 9001 --mcp
+
+# Terminal 2: Start White Agent
+python main.py white --host 0.0.0.0 --port 9002 --mcp
+
+# Terminal 3: Send evaluation request (using A2A client)
+curl -X POST http://localhost:9001 \
+  -H "Content-Type: application/json" \
+  -d '{"white_agent_url": "http://localhost:9002", "task_id": "82e2fac_1"}'
+```
+
+---
+
+## 📊 Evaluation Metrics
+
+The system tracks multiple dimensions of agent performance:
+
+| Metric | Description |
+|--------|-------------|
+| **Success Rate** | Task completion accuracy (unit tests passed) |
+| **API Call Efficiency** | Success/failure rate of tool calls |
+| **Failed Execution Count** | Number of failed attempts or errors |
+| **Interaction Steps** | Total steps taken to complete task |
+| **Task Completion Time** | Duration of evaluation |
+
+Example output:
+
+```json
+{
+  "task_id": "82e2fac_1",
+  "success": true,
+  "steps": 7,
+  "final_answer": "A Love That Never Was",
+  "evaluation": {
+    "success": true,
+    "difficulty": 1,
+    "num_tests": 2,
+    "passes": [...]
+  }
+}
+```
+
+---
+
+## 📁 Project Structure
+
+```
+appworld_green_agent/
+├── main.py                          # CLI entry point
+├── requirements.txt                 # Python dependencies
+├── run.sh                           # AgentBeats controller startup script
+├── startup.sh                       # Cloud Run deployment script
+├── Procfile                         # Process configuration
+│
+├── src/
+│   ├── green_agent/
+│   │   ├── agent.py                # Green Agent (Approach II)
+│   │   ├── agent_mcp.py           # Green Agent (Approach III - MCP)
+│   │   ├── serve_task_apis.py     # Custom API server with task-specific DB loading
+│   │   └── appworld_green_agent.toml
+│   │
+│   ├── white_agent/
+│   │   ├── agent.py                # White Agent (Approach II)
+│   │   ├── agent_mcp.py           # White Agent (Approach III - MCP with Planning)
+│   │   └── appworld_white_agent.toml
+│   │
+│   ├── evaluator/
+│   │   └── batch_evaluator.py      # Batch evaluation logic
+│   │
+│   ├── util/
+│   │   ├── __init__.py             # parse_tags utility
+│   │   └── a2a_client.py           # A2A protocol client
+│   │
+│   ├── launcher.py                 # Launcher for Approach II
+│   └── launcher_mcp.py             # Launcher for Approach III (MCP)
+│
+└── README.md                        # This file
+```
+
+---
+
+## 🧠 Technical Deep Dive
+
+### Approach III: MCP with Intelligent Planning
+
+The MCP-based approach includes a **Planning Phase** that significantly improves performance:
+
+1. **Task Analysis**: Extract keywords from task instruction (e.g., "Spotify", "playlist")
+2. **Tool Filtering**: Narrow 469 tools → ~100 relevant tools using keyword matching
+3. **LLM Planning**: GPT-4o predicts execution plan with specific tools
+4. **Documentation Fetching**: Pre-load API docs for predicted tools
+5. **Enhanced Prompt**: System prompt includes planned tools + full relevant tool list
+
+**Benefits:**
+- Reduces hallucination (LLM sees only relevant tools)
+- Faster execution (pre-fetched documentation)
+- Better task completion rate
+
+### MCP Server Management
+
+Green Agent automatically manages infrastructure:
+
+```python
+# Simplified flow
+1. Start API Server (port 9000) with task-specific DB
+2. Start MCP Server (port 10000) connected to API Server
+3. White Agent discovers tools via MCP
+4. White Agent calls tools → MCP Server → API Server → AppWorld
+5. Green Agent evaluates results
+6. Cleanup: Stop servers, reset state
+```
+
+### Port Management & Error Handling
+
+- Automatic port conflict detection and resolution
+- Graceful subprocess cleanup
+- Comprehensive error logging
+- Timeout protection for Cloud Run
+
+---
+
+## 🛠️ Troubleshooting
+
+### Port Already in Use
+
+```bash
+# Check what's using the ports
+lsof -i :9000 -i :10000
+
+# Kill processes
+kill <PID>
+```
+
+The system attempts automatic cleanup, but manual intervention may be needed.
+
+### MCP Connection Fails
+
+1. Verify ports 9000 and 10000 are available
+2. Check `APPWORLD_ROOT` is set correctly
+3. Review logs: `tail -f /tmp/mcp_server.log`
+
+### OpenAI API Errors
+
+```bash
+# Verify API key
+echo $OPENAI_API_KEY
+
+# Test API access
+curl https://api.openai.com/v1/models \
+  -H "Authorization: Bearer $OPENAI_API_KEY"
+```
+
+### Task Data Not Found
+
+```bash
+# Verify AppWorld data
+ls $APPWORLD_ROOT/data/tasks/
+
+# Re-download if needed
+cd $APPWORLD_ROOT
+python -m appworld.cli download --dataset-version v1
+```
+
+---
+
+## 🚢 Cloud Deployment (Optional)
+
+### Deploy to Google Cloud Run
+
+```bash
+# Build and deploy
 gcloud run deploy appworld-green-agent \
   --source . \
   --platform managed \
   --region us-central1 \
   --allow-unauthenticated \
   --memory 2Gi \
-  --timeout 3600
+  --cpu 2 \
+  --timeout 3600 \
+  --set-env-vars APPWORLD_ROOT=/workspace/appworld
+
+# Get service URL
+gcloud run services describe appworld-green-agent --format='value(status.url)'
 ```
 
-2. **Submit to AgentBeats**:
-   - Visit https://agentbeats.ai/
-   - Register your Green Agent
-   - Submit your Controller URL
+### Submit to AgentBeats
 
-## Project Structure
+1. Visit [AgentBeats Platform](https://agentbeats.ai/)
+2. Register your Green Agent
+3. Submit your Controller URL
 
-```
-appworld_green_agent/
-├── main.py                      # CLI entry point
-├── src/
-│   ├── green_agent/
-│   │   ├── agent.py            # Green Agent (Approach II)
-│   │   ├── agent_mcp.py        # Green Agent (Approach III - MCP)
-│   │   └── appworld_green_agent.toml
-│   ├── white_agent/
-│   │   ├── agent.py            # White Agent (Approach II)
-│   │   ├── agent_mcp.py        # White Agent (Approach III - MCP)
-│   │   └── appworld_white_agent.toml
-│   ├── launcher.py             # Launcher for Approach II
-│   ├── launcher_mcp.py         # Launcher for Approach III
-│   ├── evaluator/
-│   │   └── batch_evaluator.py  # Batch evaluation
-│   └── util/
-│       ├── parse_tags.py       # XML tag parsing
-│       └── a2a_client.py       # A2A client utilities
-├── run.sh                       # AgentBeats controller script
-├── startup.sh                   # Cloud Run startup script
-├── Procfile                     # Process configuration
-├── requirements.txt             # Python dependencies
-└── README.md                    # This file
-```
+---
 
-## Key Features Explained
-
-### Approach II: JSON Tool Delivery
-
-- Tools are serialized as JSON and sent in the initial message
-- White Agent receives complete tool schemas upfront
-- Simple and straightforward
-- Limited by message size for large tool sets
-
-### Approach III: MCP (Model Context Protocol)
-
-- Tools are discovered dynamically via MCP server
-- White Agent queries MCP server for available tools
-- Real-time tool execution through MCP protocol
-- Scalable to large tool sets (457 AppWorld tools)
-- Supports structured output and validation
-
-### Automatic Port Management
-
-The system automatically handles port conflicts:
-- Checks port availability before starting servers
-- Discovers and stops processes using occupied ports
-- Uses `SO_REUSEADDR` to allow immediate port reuse
-- Graceful error messages if ports cannot be freed
-
-### MCP Server Management
-
-Green Agent automatically manages MCP infrastructure:
-- Starts API Server (port 9000) for AppWorld APIs
-- Starts MCP Server (port 10000) for tool delivery
-- Handles server lifecycle (startup, health checks, shutdown)
-- Prevents pipe blocking with proper output handling
-
-## Environment Variables
-
-- `APPWORLD_ROOT`: Path to AppWorld repository (required)
-- `OPENAI_API_KEY`: OpenAI API key for White Agent (required)
-- `PORT`: Server port (for Cloud Run, default: 8080)
-
-## Troubleshooting
-
-### Port Conflicts
-
-If you see "Port already in use" errors:
-```bash
-# Find processes using ports
-lsof -i :9000 -i :10000
-
-# Kill specific process
-kill <PID>
-```
-
-The system will attempt to do this automatically, but manual intervention may be needed in some cases.
-
-### MCP Connection Issues
-
-If MCP server fails to connect:
-1. Check that port 10000 is available
-2. Verify API server is running on port 9000
-3. Check logs for detailed error messages
-
-### AppWorld Data Not Found
-
-If you see "AppWorld data directory not found":
-```bash
-# Verify APPWORLD_ROOT is set
-echo $APPWORLD_ROOT
-
-# Check data directory exists
-ls $APPWORLD_ROOT/data
-```
-
-## Development
+## 🧪 Development & Testing
 
 ### Running Tests
 
 ```bash
-# Test Approach II
+# Test single task (Approach II)
 python main.py launch --task-id 82e2fac_1
 
-# Test Approach III (MCP)
+# Test with MCP
 python main.py launch --task-id 82e2fac_1 --mcp
+
+# Batch evaluation
+python main.py batch --task-file test_tasks.txt --output results.json --mcp
 ```
 
-### Code Structure
+### Adding New Tasks
 
-- **Green Agent**: Manages task evaluation, coordinates with White Agent
-- **White Agent**: OpenAI-based agent that attempts to solve tasks
-- **MCP Server**: Exposes AppWorld tools via MCP protocol
-- **Launcher**: Coordinates Green and White agents for local testing
+Create `test_tasks.txt`:
 
-## Performance
+```
+82e2fac_1
+a1b2c3d_2
+xyz123_3
+```
 
-- **Task Evaluation**: ~1-5 minutes per task (depends on complexity)
-- **MCP Server Startup**: ~5 seconds
-- **Tool Discovery**: ~1 second (457 tools)
-- **Tool Execution**: Real-time via MCP protocol
+### Modifying Evaluation Logic
 
-## Contributing
+- **Green Agent**: Edit `src/green_agent/agent_mcp.py`
+- **White Agent**: Edit `src/white_agent/agent_mcp.py`
+- **Planning Phase**: Modify `plan_task()` in white agent
+- **Metrics**: Update evaluation section in green agent
+
+---
+
+## 📈 Performance Notes
+
+- **Task Evaluation**: 1-5 minutes per task (complexity-dependent)
+- **MCP Server Startup**: ~8 seconds
+- **Tool Discovery**: <1 second for 469 tools
+- **Planning Phase**: ~5 seconds (GPT-4o call + doc fetching)
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please:
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## License
+---
 
-[Your License Here]
+## 📜 License
 
-## Acknowledgments
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-- AppWorld benchmark team
-- AgentBeats platform
-- Model Context Protocol (MCP) specification
-- Agent2Agent (A2A) protocol
+---
 
-## Contact
+## 🙏 Acknowledgments
 
-[Your Contact Information]
+- **UC Berkeley RDI** for hosting the AgentX-AgentBeats competition
+- **AppWorld Team** at Stony Brook NLP for the comprehensive benchmark
+- **AgentBeats Platform** for standardized agent evaluation infrastructure
+- **Model Context Protocol (MCP)** for dynamic tool interaction framework
+- **Agent2Agent (A2A) Protocol** for agent communication standards
+
+---
+
+## 📧 Contact
+
+For questions or issues:
+- Open an issue on GitHub
+- Competition Discord: [AgentX-AgentBeats Discord](https://discord.gg/agentx)
+
+---
+
+## 🔗 Related Links
+
+- [AgentX-AgentBeats Competition](https://rdi.berkeley.edu/agentx-agentbeats.html)
+- [AppWorld Benchmark](https://github.com/stonybrooknlp/appworld)
+- [AgentBeats Platform](https://agentbeats.ai/)
+- [Model Context Protocol](https://modelcontextprotocol.io/)
+- [A2A Protocol Documentation](https://github.com/berkeley-function-call-leaderboard/agent2agent)
+
+---
+
+**Built with ❤️ for the AgentX-AgentBeats Competition**
