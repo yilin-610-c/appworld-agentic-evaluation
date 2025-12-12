@@ -239,11 +239,19 @@ Respond with JSON:
         print("[White Agent MCP] Received message...")
         user_input = context.get_user_input()
         
-        # Initialize log file on first message (using context_id as identifier)
+        # Initialize log file on first message
+        # Try to extract task_id from the message for better log file naming
         if self.log_file is None:
-            context_id = context.context_id or "unknown"
-            self.log_file = f"/tmp/mcp_tool_calls_{context_id}.jsonl"
-            print(f"[White Agent MCP] Log file initialized: {self.log_file}")
+            import re
+            task_id_match = re.search(r'<task_id>(.*?)</task_id>', user_input, re.DOTALL)
+            if task_id_match:
+                task_id = task_id_match.group(1).strip()
+                self.log_file = f"/tmp/mcp_tool_calls_{task_id}.jsonl"
+                print(f"[White Agent MCP] Log file initialized with task_id: {self.log_file}")
+            else:
+                context_id = context.context_id or "unknown"
+                self.log_file = f"/tmp/mcp_tool_calls_{context_id}.jsonl"
+                print(f"[White Agent MCP] Log file initialized with context_id: {self.log_file}")
         
         # Parse input to check for MCP URL and task
         import re

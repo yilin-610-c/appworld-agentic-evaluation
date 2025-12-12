@@ -239,6 +239,8 @@ async def run_appworld_task_mcp(white_agent_url: str, task_id: str, max_steps: i
 {instruction}
 </task>
 
+<task_id>{task_id}</task_id>
+
 **IMPORTANT CONTEXT:**
 - You are operating in an automated AppWorld environment
 - DO NOT ask humans for any information (passwords, usernames, etc.)
@@ -430,10 +432,18 @@ When you have the final answer, please respond with:
             try:
                 from src.evaluator.trajectory_analyzer import analyze_mcp_trajectory
                 
-                # Get log file path (use context_id from the interaction)
-                log_file = f"/tmp/mcp_tool_calls_{context_id}.jsonl"
+                # Get log file path (use task_id or context_id as identifier)
+                # Try task_id first (more reliable), then context_id
+                log_file_by_task = f"/tmp/mcp_tool_calls_{task_id}.jsonl"
+                log_file_by_context = f"/tmp/mcp_tool_calls_{context_id}.jsonl"
                 
-                if os.path.exists(log_file):
+                log_file = None
+                if os.path.exists(log_file_by_task):
+                    log_file = log_file_by_task
+                elif os.path.exists(log_file_by_context):
+                    log_file = log_file_by_context
+                
+                if log_file:
                     print(f"\n{'='*80}")
                     print("TRAJECTORY ANALYSIS:")
                     print(f"{'='*80}")
@@ -442,7 +452,9 @@ When you have the final answer, please respond with:
                     print(json.dumps(trajectory_metrics, indent=2))
                     print(f"{'='*80}")
                 else:
-                    print(f"\nWarning: Log file not found: {log_file}")
+                    print(f"\nWarning: Log file not found at:")
+                    print(f"  - {log_file_by_task}")
+                    print(f"  - {log_file_by_context}")
                     print("Trajectory analysis skipped.")
                     
             except Exception as e:
