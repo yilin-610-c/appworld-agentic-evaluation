@@ -18,7 +18,8 @@ This project implements a **Green Agent** (benchmark/evaluator) that assesses **
 - ✅ **Standardized Evaluation**: A2A-compatible interface for any agent
 - ✅ **Dynamic Tool Discovery**: MCP-based real-time API access
 - ✅ **Intelligent Planning**: Keyword-based tool filtering (469 → ~100 relevant tools)
-- ✅ **Multi-dimensional Metrics**: Success rate, API efficiency, failed execution tracking
+- ✅ **Two-Dimensional Metrics**: Task outcome (AppWorld) + Trajectory analysis (10 advanced metrics)
+- ✅ **Self-Correction Detection**: Tracks agent's ability to learn from errors and retry
 - ✅ **Reproducible Assessment**: Consistent initial state for each evaluation run
 - ✅ **Production-Ready**: Cloud Run deployment with automated resource management
 
@@ -163,17 +164,56 @@ curl -X POST http://localhost:9001 \
 
 ## 📊 Evaluation Metrics
 
-The system tracks multiple dimensions of agent performance:
+The system provides **two-dimensional evaluation** of agent performance:
+
+### Dimension 1: Task Outcome (AppWorld Official Evaluator)
 
 | Metric | Description |
 |--------|-------------|
 | **Success Rate** | Task completion accuracy (unit tests passed) |
-| **API Call Efficiency** | Success/failure rate of tool calls |
-| **Failed Execution Count** | Number of failed attempts or errors |
-| **Interaction Steps** | Total steps taken to complete task |
-| **Task Completion Time** | Duration of evaluation |
+| **Tests Passed** | Number of validation tests that passed |
+| **Tests Failed** | Number of validation tests that failed |
+| **Difficulty** | Task complexity level (1-3) |
 
-Example output:
+### Dimension 2: Trajectory & Efficiency Analysis (New!)
+
+The system automatically logs all tool calls and computes advanced metrics:
+
+#### 📊 Basic Efficiency Metrics
+
+| Metric | Description | Calculation |
+|--------|-------------|-------------|
+| **Total API Calls** | Number of tool invocations | Count of log entries |
+| **Total Duration** | Physical time span | Last timestamp - First timestamp |
+| **Throughput** | Calls per minute | (Total calls / Duration) × 60 |
+| **Avg Latency** | Mean response time | Σ(duration_ms) / Total calls |
+
+#### ⚠️ Error & Stability Metrics
+
+| Metric | Description | Significance |
+|--------|-------------|--------------|
+| **Error Rate** | Percentage of failed calls | Reflects parameter accuracy |
+| **Failed Calls** | Number of unsuccessful attempts | Debugging indicator |
+| **Successful Calls** | Number of successful attempts | Reliability measure |
+| **Retry Count** | Self-correction attempts | **Measures agent's ability to learn from errors** |
+
+The **Retry Count** is a sophisticated metric that detects when the agent:
+1. Makes a tool call that fails
+2. Immediately retries the same tool with corrected parameters
+3. Succeeds on the second attempt
+
+This measures the agent's **self-correction capability**.
+
+#### 🔍 Behavioral Pattern Metrics
+
+| Metric | Description | Significance |
+|--------|-------------|--------------|
+| **Pagination Sequences** | Number of continuous browsing/search operations | Indicates exploration strategy |
+| **Unique Tools** | Count of distinct tools used | Measures solution breadth |
+
+**Pagination Sequences** detect when the agent repeatedly calls library/list/search tools (e.g., browsing through multiple pages of results), indicating whether the agent uses targeted queries or broad exploration.
+
+### Example Output
 
 ```json
 {
@@ -185,9 +225,79 @@ Example output:
     "success": true,
     "difficulty": 1,
     "num_tests": 2,
-    "passes": [...]
+    "passes": [
+      {
+        "requirement": "assert no model changes.",
+        "label": "no_op_pass"
+      }
+    ],
+    "failures": []
+  },
+  "trajectory_analysis": {
+    "total_api_calls": 15,
+    "total_duration_seconds": 12.5,
+    "calls_per_minute": 72.0,
+    "avg_duration_ms": 833.3,
+    "error_rate": 0.133,
+    "failed_calls": 2,
+    "successful_calls": 13,
+    "retry_count": 1,
+    "pagination_sequences": 2,
+    "unique_tools": 8,
+    "unique_tool_list": [
+      "spotify__login",
+      "spotify__show_playlist_library",
+      "spotify__show_liked_songs",
+      "supervisor__complete_task"
+    ]
   }
 }
+```
+
+### Console Output
+
+The system also prints a formatted trajectory analysis:
+
+```
+================================================================================
+TRAJECTORY ANALYSIS RESULTS
+================================================================================
+
+📊 BASIC EFFICIENCY METRICS
+--------------------------------------------------------------------------------
+  Total API Calls:        15
+  Total Duration:         12.50 seconds
+  Throughput:             72.00 calls/min
+  Average Latency:        833.33 ms
+
+⚠️  ERROR AND STABILITY METRICS
+--------------------------------------------------------------------------------
+  Successful Calls:       13
+  Failed Calls:           2
+  Error Rate:             13.3%
+  Retry Count:            1 (self-correction)
+
+🔍 BEHAVIORAL PATTERN METRICS
+--------------------------------------------------------------------------------
+  Pagination Sequences:   2
+  Unique Tools Used:      8
+
+🔧 TOOLS USED:
+--------------------------------------------------------------------------------
+  1. spotify__login
+  2. spotify__show_playlist_library
+  ...
+  8. supervisor__complete_task
+
+================================================================================
+```
+
+### Standalone Trajectory Analysis
+
+You can also analyze existing log files independently:
+
+```bash
+python src/evaluator/trajectory_analyzer.py /tmp/mcp_tool_calls_82e2fac_1.jsonl
 ```
 
 ---
@@ -201,6 +311,7 @@ appworld_green_agent/
 ├── run.sh                           # AgentBeats controller startup script
 ├── startup.sh                       # Cloud Run deployment script
 ├── Procfile                         # Process configuration
+├── test_trajectory_analyzer.py      # Unit tests for trajectory analysis
 │
 ├── src/
 │   ├── green_agent/
@@ -215,7 +326,8 @@ appworld_green_agent/
 │   │   └── appworld_white_agent.toml
 │   │
 │   ├── evaluator/
-│   │   └── batch_evaluator.py      # Batch evaluation logic
+│   │   ├── batch_evaluator.py      # Batch evaluation logic
+│   │   └── trajectory_analyzer.py  # Tool call trajectory analysis (10 metrics)
 │   │
 │   ├── util/
 │   │   ├── __init__.py             # parse_tags utility
