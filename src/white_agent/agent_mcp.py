@@ -7,6 +7,8 @@ import os
 import sys
 import asyncio
 import traceback
+import time
+from datetime import datetime
 from typing import Dict, Any, List
 
 from a2a.server.apps import A2AStarletteApplication
@@ -46,6 +48,8 @@ class AppWorldWhiteAgentMCPExecutor(AgentExecutor):
         self.planned_tools = []
         self.tool_docs = {}
         self.all_tool_names = []
+        # Logging attributes
+        self.log_file = None
         
     async def connect_to_mcp(self, mcp_url: str):
         """Connect to the MCP server."""
@@ -235,6 +239,12 @@ Respond with JSON:
         print("[White Agent MCP] Received message...")
         user_input = context.get_user_input()
         
+        # Initialize log file on first message (using context_id as identifier)
+        if self.log_file is None:
+            context_id = context.context_id or "unknown"
+            self.log_file = f"/tmp/mcp_tool_calls_{context_id}.jsonl"
+            print(f"[White Agent MCP] Log file initialized: {self.log_file}")
+        
         # Parse input to check for MCP URL and task
         import re
         mcp_url_match = re.search(r'MCP Server URL: (http://\S+)', user_input)
@@ -394,9 +404,23 @@ Tool call format:
                         print(f"[Real MCP] Calling tool: {tool_name}")
                         print(f"[Real MCP] Arguments: {args}")
                         
+                        # Record start time and timestamp for logging
+                        start_time = time.time()
+                        timestamp_start = datetime.now().isoformat()
+                        success = False
+                        result = None
+                        
                         try:
                             # REAL MCP CALL
                             result = self.mcp_client.call_tool(tool_name, arguments=args)
+                            success = True
+                            
+                            # Check for is_error in result.response
+                            if isinstance(result, dict):
+                                response = result.get("response", {})
+                                if isinstance(response, dict) and response.get("is_error") == True:
+                                    success = False
+                            
                             print(f"[Real MCP] ✓ Tool call successful")
                             
                             # DEBUG: Print result to stdout for inspection
@@ -409,6 +433,9 @@ Tool call format:
                             self.history.append({"role": "user", "content": tool_result_msg})
                             
                         except Exception as e:
+                            success = False
+                            result = {"error": str(e)}
+                            
                             print(f"[Real MCP] ✗ Tool call failed: {e}")
                             error_msg = str(e)
                             # Provide helpful feedback to LLM
@@ -418,6 +445,27 @@ Tool call format:
                                 tool_result_msg = f"ERROR calling tool '{tool_name}': {error_msg}"
                             self.history.append({"role": "user", "content": tool_result_msg})
                             content += f"\n\n(Tool execution failed: {error_msg})"
+                        
+                        finally:
+                            # Calculate duration and log the call
+                            duration_ms = (time.time() - start_time) * 1000
+                            
+                            # Create log entry
+                            log_entry = {
+                                "timestamp": timestamp_start,
+                                "tool_name": tool_name,
+                                "arguments": args,
+                                "success": success,
+                                "duration_ms": round(duration_ms, 2),
+                                "result": result
+                            }
+                            
+                            # Write to JSONL log file
+                            try:
+                                with open(self.log_file, "a") as f:
+                                    f.write(json.dumps(log_entry, default=str) + "\n")
+                            except Exception as log_error:
+                                print(f"[White Agent MCP] Warning: Failed to write log: {log_error}")
                             
                 except json.JSONDecodeError:
                     pass

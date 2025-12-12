@@ -426,6 +426,30 @@ When you have the final answer, please respond with:
             metrics["final_answer"] = final_answer
             metrics["evaluation"] = ev_dict
             
+            # NEW: Trajectory Analysis
+            try:
+                from src.evaluator.trajectory_analyzer import analyze_mcp_trajectory
+                
+                # Get log file path (use context_id from the interaction)
+                log_file = f"/tmp/mcp_tool_calls_{context_id}.jsonl"
+                
+                if os.path.exists(log_file):
+                    print(f"\n{'='*80}")
+                    print("TRAJECTORY ANALYSIS:")
+                    print(f"{'='*80}")
+                    trajectory_metrics = analyze_mcp_trajectory(log_file)
+                    metrics["trajectory_analysis"] = trajectory_metrics
+                    print(json.dumps(trajectory_metrics, indent=2))
+                    print(f"{'='*80}")
+                else:
+                    print(f"\nWarning: Log file not found: {log_file}")
+                    print("Trajectory analysis skipped.")
+                    
+            except Exception as e:
+                print(f"\nWarning: Trajectory analysis failed: {e}")
+                import traceback
+                traceback.print_exc()
+            
             return metrics
 
 
