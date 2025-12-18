@@ -4,11 +4,11 @@
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-An advanced agentified evaluation infrastructure for the AppWorld benchmark, built for the UC Berkeley AgentX-AgentBeats competition. This system transforms AppWorld into an interactive, standardized benchmark using the Agent-to-Agent (A2A) protocol and Model Context Protocol (MCP), with enhanced features inspired by state-of-the-art agent architectures.
+An agentified evaluation infrastructure for the AppWorld benchmark, built for the UC Berkeley AgentX-AgentBeats competition. This system transforms AppWorld into an interactive benchmark using the Agent-to-Agent (A2A) protocol and Model Context Protocol (MCP), with enhanced features inspired by modern agent architectures.
 
 ## 🎯 Overview
 
-This project implements a **Green Agent** (benchmark/evaluator) that assesses **White Agents** (AI agents under test) on real-world tasks spanning 9 applications with 469+ APIs. The evaluation infrastructure supports multiple tool delivery approaches and incorporates advanced planning strategies, context management, and structured logging.
+This project implements a **Green Agent** (benchmark/evaluator) that assesses **White Agents** (AI agents under test) on real-world tasks spanning 9 applications with 469+ APIs. The evaluation infrastructure supports multiple tool delivery approaches and incorporates planning strategies, context management, and structured logging.
 
 ### Supported Approaches
 
@@ -25,7 +25,8 @@ This project implements a **Green Agent** (benchmark/evaluator) that assesses **
 - ✅ **Dynamic Tool Discovery**: MCP-based real-time API access (469 tools)
 - ✅ **Reproducible Assessment**: Consistent initial state for each evaluation run
 
-### Advanced Features (Enhanced)
+### Enhanced Features
+
 - 🎯 **Intelligent Planning Phase**: 
   - Task analysis with LLM-powered app identification
   - Smart tool filtering (469 → ~10-100 relevant tools)
@@ -46,7 +47,7 @@ This project implements a **Green Agent** (benchmark/evaluator) that assesses **
   - Pagination handling with explicit rules
   - "Most-liked" vs "liked" disambiguation with examples
 
-- 📈 **Comprehensive Metrics**:
+- 📈 **Evaluation Metrics**:
   - Task success/failure (AppWorld unit tests)
   - Execution efficiency (steps, time, API calls)
   - Trajectory quality (error rate, retry count, unique tools)
@@ -452,96 +453,29 @@ cat /tmp/a2a_agent_trace_*.jsonl | tail -n 1 | jq '.action.content'
 
 ---
 
-## 📊 Reproducing Benchmark Results
+## 📊 Test Results
 
-### AppWorld Benchmark Setup
+### Verified Test Case
 
-The AppWorld benchmark consists of:
-- **752 tasks** across 9 applications
-- **3 difficulty levels**: 1 (easy), 2 (medium), 3 (hard)
-- **2 task types**: Question-answering and state-change
+**Task 82e2fac_1 (A2A Mode with GPT-4o):**
+```
+Question: "What is the title of the most-liked song in my Spotify playlists?"
+Expected Answer: "A Love That Never Was"
 
-### Full Benchmark Evaluation
-
-```bash
-# Evaluate on entire dev set (752 tasks)
-python main.py batch --split dev --output results_dev.json
-
-# Evaluate on test set (if available)
-python main.py batch --split test --output results_test.json
-
-# Evaluate only difficulty level 1 tasks
-python main.py batch --split dev --difficulty 1 --output results_dev_easy.json
-
-# Evaluate with parallel execution (4 workers)
-python main.py batch --split dev --workers 4 --output results_dev_parallel.json
+Result: ✅ SUCCESS
+Steps: 14
+Time: 86.4s
+Passes: 2/2
 ```
 
-### Expected Benchmark Results
+### Implementation Features
 
-**Our White Agent (Enhanced A2A Mode):**
-```
-Task: 82e2fac_1 (Difficulty 1)
-  Question: "What is the title of the most-liked song in my Spotify playlists?"
-  Expected Answer: "A Love That Never Was"
-  
-  Result: ✅ SUCCESS
-  Steps: 14
-  Time: 86.4s
-  Passes: 2/2
-  
-  Execution Plan:
-    1. Identify required apps (spotify, api_docs, supervisor)
-    2. Fetch credentials from supervisor
-    3. Login to Spotify
-    4. Get all playlists
-    5. For each playlist, get songs
-    6. For each song, get like_count
-    7. Compare and find max
-    8. Return title
-```
-
-**GPT-4o Baseline Performance (Dev Set):**
-- Overall Success Rate: ~45-55% (varies by task difficulty)
-- Difficulty 1: ~70-80%
-- Difficulty 2: ~40-50%
-- Difficulty 3: ~20-30%
-
-**Our Enhanced Features Impact:**
-- ✅ Improved answer format compliance (+10% success rate)
-- ✅ Better handling of comparison tasks (+15% on comparison tasks)
-- ✅ Fewer redundant API calls (-20% average steps)
-- ✅ Structured logging enables better debugging
-
-### Comparing with Original Benchmark
-
-```bash
-# Original AppWorld baseline (no agent)
-cd /path/to/appworld
-python -m appworld.apps run --task-id 82e2fac_1
-
-# Our agentified version
-cd /path/to/appworld-agentic-evaluation
-python main.py launch --task-id 82e2fac_1
-
-# Compare metrics
-python scripts/compare_results.py \
-  --original appworld_results.json \
-  --ours our_results.json
-```
-
-### Statistical Analysis
-
-```bash
-# Analyze success rate by difficulty
-python scripts/analyze_results.py --input results_dev.json --group-by difficulty
-
-# Analyze success rate by app
-python scripts/analyze_results.py --input results_dev.json --group-by app
-
-# Generate performance report
-python scripts/generate_report.py --input results_dev.json --output report.html
-```
+- ✅ Context pre-loading (credentials + profile)
+- ✅ Structured planning phase
+- ✅ Smart tool filtering
+- ✅ Enhanced system prompts
+- ✅ Structured JSONL logging
+- ✅ Message compression
 
 ---
 
@@ -899,10 +833,7 @@ WHITE_AGENT_MODEL=openai/gpt-4o-mini python main.py launch --task-id 82e2fac_1
 # 2. Reduce max steps if timeouts occur
 # Edit src/green_agent/agent.py: MAX_STEPS = 20
 
-# 3. Use parallel batch evaluation
-python main.py batch --workers 4 --task-file tasks.txt
-
-# 4. Skip trajectory analysis for speed
+# 3. Skip trajectory analysis for speed
 # Edit src/green_agent/agent_mcp.py: Comment out trajectory analysis section
 ```
 
@@ -1041,10 +972,9 @@ appworld-agentic-evaluation/
 ├── logs/                            # Execution logs
 │   └── .gitkeep
 │
-└── scripts/                         # Utility scripts
-    ├── analyze_results.py
-    ├── compare_results.py
-    └── generate_report.py
+├── test_*.py                        # Unit tests
+├── main.py                          # Entry point
+└── requirements.txt                 # Dependencies
 ```
 
 ### Key Files
@@ -1065,7 +995,7 @@ appworld-agentic-evaluation/
 
 ---
 
-## 🔬 Advanced Topics
+## 🔬 Extension Topics
 
 ### Custom White Agent Development
 
