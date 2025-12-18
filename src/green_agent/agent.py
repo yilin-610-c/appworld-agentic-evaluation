@@ -19,6 +19,14 @@ from src.util import parse_tags
 from src.util.a2a_client import send_message
 
 
+def truncate_output(text, max_length=200):
+    """Truncate long output for terminal display."""
+    text_str = str(text)
+    if len(text_str) > max_length:
+        return text_str[:max_length] + f"... (truncated, total: {len(text_str)} chars)"
+    return text_str
+
+
 def load_agent_card_toml(agent_name: str) -> dict:
     """Load agent card configuration from TOML file."""
     current_dir = os.path.dirname(__file__)
@@ -293,7 +301,7 @@ Please respond again with the proper JSON format."""
                     api_name = action.get("api_name", "")
                     parameters = action.get("parameters", {})
                     
-                    print(f"Executing: {api_name} with {parameters}")
+                    print(f"Executing: {api_name} with {truncate_output(parameters, max_length=100)}")
                     
                     # Build the API call
                     # IMPORTANT: Must print the result so it's captured in stdout
@@ -303,7 +311,7 @@ Please respond again with the proper JSON format."""
                     
                     try:
                         api_result = world.execute(code)
-                        print(f"API Result: {api_result}")
+                        print(f"API Result: {truncate_output(api_result, max_length=150)}")
                         
                         # Prepare next message with result
                         initial_message = f"""API call result:
@@ -343,8 +351,14 @@ Please try a different approach or API call.
         
         eval_result = world.evaluate()
         
-        # Use to_dict() to get evaluation results (based on user's summarize_eval function)
+        # Use to_dict() to get evaluation results
         ev_dict = eval_result.to_dict()
+        
+        # Display full evaluation results (like MCP version)
+        print(f"EVALUATION RESULTS:")
+        print(f"{'='*80}")
+        print(json.dumps(ev_dict, indent=2))
+        print(f"{'='*80}\n")
         
         def _cnt(x):
             """Count helper function."""
@@ -401,12 +415,15 @@ Please try a different approach or API call.
         metrics["fails"] = fails
         metrics["total"] = total
         metrics["score"] = ev_dict.get("score", 0)
+        metrics["evaluation"] = ev_dict  # Store full evaluation dict like MCP version
         
-        print(f"Evaluation Results:")
+        # Display summary
+        print(f"Evaluation Summary:")
         print(f"  Success: {success}")
         print(f"  Passed: {passes}/{total}")
         print(f"  Failed: {fails}/{total}")
         print(f"  Score: {metrics['score']}")
+        print(f"  Steps: {step_count}")
         
         return metrics
 

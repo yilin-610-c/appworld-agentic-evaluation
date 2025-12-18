@@ -156,6 +156,85 @@ Examples:
 Remember: ALWAYS wrap your response in <json>{"action": "...", ...}</json>"""
             })
         
+        # NEW: Add planning phase for first message
+        import re
+        task_match = re.search(r'<task>(.*?)</task>', user_input, re.DOTALL)
+        if task_match:
+            task = task_match.group(1).strip()
+            
+            # Request planning from LLM
+            planning_prompt = f"""Before starting the task, analyze it and create a plan.
+
+Task: {task}
+
+Provide your analysis in this format:
+<json>
+{{
+    "action": "plan",
+    "task_type": "question|action",
+    "key_entities": ["entity1", "entity2"],
+    "required_apps": ["app1", "app2"],
+    "execution_steps": [
+        "Step 1: Description",
+        "Step 2: Description"
+    ],
+    "data_to_collect": ["what data is needed"],
+    "comparison_needed": "yes|no (if finding most/least/best)"
+}}
+</json>
+
+After planning, we'll proceed with execution."""
+            
+            # Get planning response
+            planning_messages = [
+                messages[0],  # system prompt
+                {"role": "user", "content": planning_prompt}
+            ]
+            
+            model = os.environ.get("WHITE_AGENT_MODEL", "openai/gpt-4o")
+            kwargs = {
+                "messages": planning_messages,
+                "model": model,
+                "custom_llm_provider": "openai",
+                "api_key": os.getenv("OPENAI_API_KEY"),
+                "num_retries": 3,
+            }
+            if not model.startswith("o1") and not model.startswith("o3") and "gpt-5" not in model:
+                kwargs["temperature"] = 0.0
+            
+            try:
+                planning_response = completion(**kwargs)
+                planning_content = planning_response.choices[0].message.content
+                
+                # Extract and display plan
+                plan_json_match = re.search(r'<json>(.*?)</json>', planning_content, re.DOTALL)
+                if plan_json_match:
+                    import json
+                    plan = json.loads(plan_json_match.group(1))
+                    print("\n" + "="*80)
+                    print("PLANNING PHASE")
+                    print("="*80)
+                    print(f"Task Type: {plan.get('task_type', 'unknown')}")
+                    print(f"Required Apps: {', '.join(plan.get('required_apps', []))}")
+                    print("\nExecution Steps:")
+                    for i, step in enumerate(plan.get('execution_steps', []), 1):
+                        print(f"  {i}. {step}")
+                    if plan.get('comparison_needed') == 'yes':
+                        print("\n⚠️  Comparison Task: Will need to track and compare values")
+                    print("="*80 + "\n")
+                    
+                    # Add plan to message history as context
+                    messages.append({
+                        "role": "assistant",
+                        "content": planning_content
+                    })
+                    messages.append({
+                        "role": "user",
+                        "content": f"Good plan! Now execute it step by step. Task: {task}"
+                    })
+            except Exception as e:
+                print(f"Planning phase failed: {e}, proceeding without plan")
+        
         messages.append({
             "role": "user",
             "content": user_input,
@@ -259,14 +338,18 @@ Remember: ALWAYS wrap your response in <json>{"action": "...", ...}</json>"""
         
         try:
             # Call OpenAI API with potentially compressed messages
-            response = completion(
-                messages=messages_to_send,  # Use compressed messages if history is long
-                model="openai/gpt-4o",
-                custom_llm_provider="openai",
-                temperature=0.0,
-                api_key=api_key,
-                num_retries=3,  # Add retry for rate limits
-            )
+            model = os.environ.get("WHITE_AGENT_MODEL", "openai/gpt-4o")
+            kwargs = {
+                "messages": messages_to_send,
+                "model": model,
+                "custom_llm_provider": "openai",
+                "api_key": api_key,
+                "num_retries": 3,
+            }
+            if not model.startswith("o1") and not model.startswith("o3") and "o1" not in model and "gpt-5" not in model:
+                kwargs["temperature"] = 0.0
+
+            response = completion(**kwargs)
             
             next_message = response.choices[0].message.model_dump()
             content = next_message["content"]
